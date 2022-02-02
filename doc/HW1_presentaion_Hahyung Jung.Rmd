@@ -1,0 +1,39 @@
+---
+title: "Presentaion"
+author: "Hahyung Jung"
+date: "2/2/2022"
+output: html_document
+---
+
+# Question 1 ) Do philosophers use positive or negative words more?
+
+```{r}
+
+knitr::include_graphics("/Users/master/spring-2022-prj1-hahyungjung/figs/plot_zoom_png")
+
+```
+
+My answer is that philosophers have used positive words more than negative words. We can discover philosophers have used positive words 33 percent more than negative words through the analysis.
+
+# Question 2 ) What is the fundamental element of many emotional aspects in philosophical expressions?
+
+```{r}
+
+knitr::include_graphics("/Users/master/spring-2022-prj1-hahyungjung/figs/plot_zoom_png")
+
+```
+
+My answer is that trust is essential in the texts. Through the data, we can see the fact that every school's ratio about trust is higher than other sentiments. It can be considered that philosophers have emphasized the 'trust' aspect in philosophical expressions many times.  
+
+
+# Question 3) What schools tend to be similar to each other in text contents?"
+
+```{r}
+
+knitr::include_graphics("/Users/master/spring-2022-prj1-hahyungjung/figs/plot_zoom_png")
+
+```
+
+We could discover this by finding the pairwise correlation of word frequencies within each school's texts, using the pairwise_cor() function from the widyr package. The answer is that we can discover the three clusters. The clusters have strong correlation over 0.6.  
+
+
