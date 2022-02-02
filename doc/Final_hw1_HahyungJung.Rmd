@@ -1,0 +1,231 @@
+---
+title: "HW1_STAT GR5243"
+author: "Hahyung Jung"
+date: "2/2/2022"
+output: html_document
+---
+
+# install needed packages & Load the libraries and functions
+
+```{r}
+packages.used=c("dplyr", "tidyverse", 
+                "syuzhet", "tidytext", "tidyr",
+                "scales", "ggplot2", "sqldf", 
+                "stringr", "tm", "readr",
+                "widyr", "igraph", "ggraph")
+
+packages.needed=setdiff(packages.used, 
+                        intersect(installed.packages()[,1], 
+                                  packages.used))
+
+library("dplyr")
+library("tidyverse")
+library("syuzhet")
+library("tidytext")
+library("tidyr")
+library("scales")
+library("ggplot2")
+library("sqldf")
+library("stringr")
+library("tm")
+library("readr") 
+library("widyr")
+library("igraph")
+library("ggraph")
+
+```
+
+```{r}
+print(R.version)
+```
+
+
+# Data harvest: scrap "THE PHILOSOPHY DATA PROJECT" csv file
+```{r}
+philosophy_data=read.csv("/Users/master/Desktop/IColud/Master/Columbia/Spring 2022/STAT GU 4243/Project 1/philosophy_data.csv", stringsAsFactors = FALSE)
+
+```
+
+# Scrap the texts of Philosophy from the csv file and Data Tokenization & Arrangement of the texts
+
+```{r}
+sentence_list <- select(philosophy_data, author, school, lemmatized_str)
+
+text_tibble <- tibble(author = sentence_list$author, school = sentence_list$school, text = sentence_list$lemmatized_str)
+
+sent_tokenized <- text_tibble %>% 
+  mutate(across(everything(), ~as.character(.))) %>% 
+  unnest_tokens(word, text)
+
+tidy_words <- sent_tokenized %>%
+  anti_join(stop_words) %>%
+  filter(word != "pron")
+```
+
+
+# Data Processing - NRC Sentiment Anlaysis 
+
+We analyze positive & negative aspects about authors' texts by using NRC sentiment anlaysis.
+
+1. Inner join between NRC sentiments such as "positive" and "negative" and tokenized tidy words
+2. Get each words' sentiment ratio and Cacluate the sentiment ratio of each author
+3. Display ggplot about each sentiment ratio of each author
+
+$$The\ Sentiment \ Ratio = \frac{(Positive\ -\ Negative)}{(Positive\ +\ Negative)}$$
+
+
+
+Author List
+```{r}
+
+author_type <- sqldf("select distinct author as 'author' from sentence_list")
+author_type
+
+```
+
+NRC Analysis
+```{r}
+
+nrc_anlaysis_pn <- tidy_words %>%
+  inner_join(get_sentiments("nrc") %>%
+               filter(sentiment %in% c("positive", "negative"))) %>%
+  mutate(method = "NRC") %>%
+  count(sentiment, author, sort = TRUE) %>%
+  spread(sentiment, n, fill = 0) %>%
+  mutate(sentiment_ratio = (positive - negative)/(positive + negative))
+
+head(nrc_anlaysis_pn)
+
+ggplot(nrc_anlaysis_pn, aes(author, sentiment_ratio, fill=sentiment_ratio)) +
+  geom_bar(stat="identity",position="identity") 
+
+nrc_anlaysis_pn %>%
+  summarise(mean_sentiment_ratio = mean(sentiment_ratio))
+
+```
+
+
+We can derive this question by analyzing, "Do philosophers use positive or negative words more?"
+
+My answer is that philosophers have used positive words more than negative words. We can discover philosophers have used positive words 33 percent more than negative words through the analysis.
+
+
+
+# Data Processing - NRC Sentiment Anlaysis
+
+We could categorize the sentiments on the schools' texts and analyze the sentiment value of the texts of each school.
+
+1. Inner join between NRC sentiments and tokenized tidy words
+[The type of sentiments in NRC : "anger", "anticipation", "disgust", "fear", "joy", "sadness", "surprise", "trust"]
+2. Get each words' sentiment value and Calculate the value of each author about sentiments
+3. Display ggplot about each sentiment ratio of each school
+
+
+$$ Freq\ Data = \frac{value's\ sum\ of\ each\ school}{all\ values'\ sum}$$
+School Type
+```{r}
+
+school_type <- sqldf("select distinct school as 'school' from sentence_list")
+school_type
+
+```
+
+
+```{r}
+
+senti <- get_sentiments("nrc") %>%
+  filter(sentiment != "positive" & sentiment != "negative")
+
+text_tokenized_senti <- tidy_words %>%
+  inner_join(get_sentiments("nrc") %>%
+               filter(sentiment != "positive" & sentiment != "negative")) %>%
+  count(school, sentiment, sort = TRUE) 
+
+text_tokenized_senti_ratio <-  text_tokenized_senti %>%
+  group_by(school, sentiment) %>%
+  summarise(value_sum = sum(n)) %>%
+  mutate(freq_data = value_sum / sum(value_sum))
+
+head(text_tokenized_senti_ratio)
+
+ggplot(data=text_tokenized_senti_ratio, aes(x=sentiment, y=freq_data,
+                                    fill=sentiment)) +
+  geom_bar(stat="identity") +
+  scale_fill_brewer(palette="Spectral") +
+  guides(fill=FALSE) +
+  facet_wrap(~ school, ncol=2) +
+  theme(axis.text.x=element_text(angle=45, hjust=1, size=8),
+        axis.title.y=element_text(margin=margin(0, 10, 0, 0)),
+        plot.title=element_text(size=14)) +
+  labs(y="ratio", x="sentiments",
+       title="Sentiments Anaylsis about the Schools") +
+  theme(text=element_text(family="NanumGothic"))
+
+```
+
+We can derive this question by analyzing, "what is the fundamental element of many emotional aspects in philosophical expressions?"
+
+My answer is that trust is essential in the texts. Through the data, we can see the fact that every school's ratio about trust is higher than other sentiments. It can be considered that philosophers have emphasized the 'trust' aspect in philosophical expressions many times.  
+
+# Data Analysis - TF-IDF & Examining Pairwise Correlation
+
+First, we could make term frequency combine to calculate a term’s tf-idf (the two quantities multiplied together), the frequency of a term adjusted for how rarely it is used. It is to find the important words for the content of each document by decreasing the weight for commonly used words and increasing the weight for words that are not used very much in a collection or corpus of documents.
+
+Second, we could discover this by finding the pairwise correlation of word frequencies within each school's texts, using the pairwise_cor() function from the widyr package. Through the correlation of each schools, we could link to each school having higher than the 0.6 value of correlation.
+
+
+$$ idf\ (term) = ln(\frac{n(documents)}{n(documents\ cotaining\ term)})$$
+
+```{r}
+
+tidy_words_school <- tidy_words %>% 
+  count(school, word, sort = TRUE) %>%
+  ungroup() 
+
+text_tokenized_total <- tidy_words_school %>% 
+  count(school, word, sort = TRUE) %>%
+  ungroup() %>% 
+  group_by(school) %>%
+  summarize(total = sum(n))
+
+text_tokenized_sort <- left_join(tidy_words_school, text_tokenized_total)
+
+text_tokenized_sort <- text_tokenized_sort %>%
+  bind_tf_idf(word, school, n)
+
+text_tokenized_sort %>%
+  select(-total) %>%
+  arrange(desc(tf_idf))
+
+text_tokenized_sort %>%
+  arrange(desc(tf_idf)) %>%
+  mutate(word = factor(word, levels = rev(unique(word)))) %>% 
+  group_by(school) %>%
+  top_n(5) %>%
+  ungroup %>%
+  ggplot(aes(word, tf_idf, fill = school)) + geom_col(show.legend = FALSE) +
+  labs(x = NULL, y = "tf-idf") +
+  facet_wrap(~school, ncol = 2, scales = "free") + coord_flip()
+
+school_cors <- text_tokenized_sort %>%
+  pairwise_cor(school, word, n, sort = TRUE)
+
+school_cors
+
+school_cors %>%
+  filter(correlation > .6) %>%
+  graph_from_data_frame() %>%
+  ggraph(layout = "fr") +
+  geom_edge_link(aes(edge_alpha = correlation, edge_width = correlation),
+                 edge_colour = "royalblue") +
+  geom_node_point(size = 5) +
+  geom_node_text(aes(label = name), repel = TRUE, point.padding = unit(0.2, "lines")) +
+  theme_void()
+
+```
+
+
+We can derive this question by analyzing, "What schools tend to be similar to each other in text contents?"
+
+The answer is that we can discover the three clusters. The clusters have strong correlation over 0.6.  
+
